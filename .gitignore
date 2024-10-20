@@ -1,2 +1,5 @@
 data/
 .DS_Store
+__pychache__/
+**/__pychache__
+libs/__pychache__
