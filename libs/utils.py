@@ -44,13 +44,11 @@ def handle_missing_values(df):
 
     return df
 
-def read_ori_data(file_path):
-    spark = start_spark()
+def read_ori_data(spark, file_path):
     df = spark.read.option("header", "true").csv(file_path, inferSchema = True)
     return df
 
-def prepare_data(file_path):
-    spark = start_spark()
+def prepare_data(spark, file_path):
     df = spark.read.option("header", "true").csv(file_path, inferSchema = True)
     df = drop_duplicates(df)
     df = handle_missing_values(df)
@@ -195,3 +193,7 @@ def ohe_cat(df, categorical_cols):
     assembler = VectorAssembler(inputCols=ohe_columns, outputCol="features")
     df_features = assembler.transform(df_encoded)
     return df_features
+
+
+def stop_spark(spark):
+    spark.stop() 
