@@ -1,7 +1,6 @@
 data/
 .DS_Store
 __pychache__/
-**/__pychache__
-libs/__pychache__
-__pychache__
-__pychache__/
+**/__pychache__/
+libs/__pycache__
+__pycache__
