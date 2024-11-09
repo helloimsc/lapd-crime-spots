@@ -4,6 +4,8 @@ from pyspark.sql.types import StringType
 from mapping import crime_cat_code_map 
 from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler
 from pyspark.ml import Pipeline
+from pyspark.sql.functions import udf
+from pyspark.sql.types import IntegerType
 
 def start_spark():
     try:
@@ -24,6 +26,7 @@ def check_missing_values(df):
 def handle_missing_values(df):
     # replace the values ​​below 1 for the "Vict Age" column with NaN
     df = df.withColumn("Vict Age", F.when(F.col("Vict Age") < 1, None).otherwise(F.col("Vict Age")))
+    df = df.dropna(subset=["Vict Age"])
     
     # fill missing values in 'Vict Sex' with 'X'
     df = df.fillna({'Vict Sex': 'X'})
@@ -41,6 +44,9 @@ def handle_missing_values(df):
 
     # delete rows with empty 'Crm Cd', 'Status' or empty detailed location
     df.na.drop(subset = ['Crm Cd', 'Status', 'LAT', 'LON'])
+    
+    # clean out those lat long with 0.0 values
+    df = df[(df["LAT"]!=0.0)&(df["LON"]!=0.0)]
 
     return df
 
@@ -60,6 +66,16 @@ def feature_selection(df):
     df = df.drop('DR_NO', 'Crm Cd 1', 'Crm Cd 2', 'Crm Cd 3', 'Crm Cd 4', 'Cross Street')
     return df
 
+def assign_time_slot(h):
+    if h < 8:
+        return 1 # time slot from 0:00 - 7:59
+    elif h < 16:
+        return 2 # time slot from 8:00 - 15:59
+    else:
+        return 3 # time slot from 16:00 - 23:59
+    
+assign_time_slot_udf = udf(assign_time_slot, IntegerType())
+
 def convert_datetime(df):
     # convert 'Date Rptd' and 'DATE OCC' into datetime
     df = df.withColumn("Date Rptd", F.to_date(F.col("Date Rptd"), "MM/dd/yyyy hh:mm:ss a"))
@@ -69,12 +85,18 @@ def convert_datetime(df):
     # TODO: the formatting here is slightly wrong. need to check again.
     df = df.withColumn("TIME OCC", F.lpad(F.col("TIME OCC").cast("string"), 4, '0'))  # Pad with zeros to ensure length of 4
     df = df.withColumn("TIME OCC", F.concat(F.substring("TIME OCC", 1, 2), F.lit(':'), F.substring("TIME OCC", 3, 2)))  # Format as HH:mm
+    
+    df = df.withColumn("Occ DateTime", F.to_timestamp(F.concat_ws(" ", df["DATE OCC"], df["TIME OCC"])))
+    df = df.withColumn("hour", F.hour(df["Occ DateTime"]))
+    df = df.withColumn("time_slot", assign_time_slot_udf(F.col("hour")))
 
     # extract year, month and day of the week from datetime
     df = df.withColumn('Year OCC', F.year("DATE OCC"))
     df = df.withColumn('Month OCC', F.month("DATE OCC"))
-    df = df.withColumn('Day OCC', F.dayofmonth(F.col("DATE OCC")))
+    df = df.withColumn('Day OCC', F.dayofweek(F.col("DATE OCC")))
+    df = df.withColumn('Date OCC', F.day("DATE OCC"))
     return df
+    
 
 def vict_cd_transform(df):
     # Mapping of victim codes to descriptions
@@ -134,7 +156,7 @@ def feature_engineering(df):
     df = map_crime_cat(df)
     
     return df
-
+    
 
 def drop_columns(df, column_list):
     df = df.drop(*column_list)
