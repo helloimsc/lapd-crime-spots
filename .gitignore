@@ -5,3 +5,8 @@ __pychache__/
 libs/__pycache__
 __pycache__
 all_plots/
+
+heatmaps/multiple_clusters.html
+clusters/data_for_time_slot_clustering.pkl
+clusters/data_for_clusterings.pkl
+clusters/kmeans_without_hr_model.pkl
